@@ -1,0 +1,16 @@
+{
+  "name": "purescript-cst-linter",
+  "version": "0.0.0",
+  "description": "A simple library to run linting ps code easily.",
+  "main": "index.js",
+  "scripts": {
+  },
+  "keywords": [],
+  "author": "Avinash",
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^9.6.0",
+    "purescript": "^0.15.15",
+    "spago": "^0.93.35"
+  }
+}

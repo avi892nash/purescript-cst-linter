@@ -2,15 +2,35 @@
   "name": "purescript-cst-linter",
   "version": "0.0.0",
   "description": "A simple library to run linting ps code easily.",
-  "main": "index.js",
+  "publisher": "pslint",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "activationEvents": [
+    "onLanguage:plaintext"
+  ],
+  "main": "dist/client.js",
   "scripts": {
+    "vscode:prepublish": "npx vsce package",
+    "build": "spago build",
+    "bundle:client": "esbuild --bundle --outfile=dist/client.js --platform=node --format=cjs --external:vscode ./output/ClientLSP/index.js",
+    "bundle:server": "esbuild --bundle --outfile=dist/server.js --platform=node --format=cjs --external:vscode ./output/ServerLSP/index.js",
+    "bundle": "spago build && npm run bundle:client && npm run bundle:server"
+    
   },
   "keywords": [],
   "author": "Avinash",
   "license": "ISC",
   "devDependencies": {
+    "@types/vscode": "^1.91.0",
+    "esbuild": "^0.23.0",
     "eslint": "^9.6.0",
     "purescript": "^0.15.15",
-    "spago": "^0.93.35"
+    "spago": "^0.93.35",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "path": "^0.12.7",
+    "vscode-languageclient": "^9.0.1"
   }
 }

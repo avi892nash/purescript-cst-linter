@@ -1,14 +1,92 @@
 workspace:
   packages:
-    cst-linter:
-      path: ./
+    client:
+      path: client
+      dependencies:
+        - aff
+        - common
+        - console
+        - effect
+      test_dependencies: []
+      build_plan:
+        - aff
+        - arraybuffer-types
+        - arrays
+        - bifunctors
+        - catenable-lists
+        - common
+        - console
+        - const
+        - contravariant
+        - control
+        - datetime
+        - distributive
+        - effect
+        - either
+        - enums
+        - exceptions
+        - exists
+        - foldable-traversable
+        - foreign
+        - foreign-object
+        - free
+        - functions
+        - functors
+        - gen
+        - identity
+        - integers
+        - invariant
+        - js-bigints
+        - js-date
+        - language-cst-parser
+        - lazy
+        - lists
+        - maybe
+        - newtype
+        - node-buffer
+        - node-event-emitter
+        - node-fs
+        - node-glob-basic
+        - node-path
+        - node-process
+        - node-streams
+        - nonempty
+        - now
+        - nullable
+        - numbers
+        - ordered-collections
+        - orders
+        - parallel
+        - partial
+        - posix-types
+        - prelude
+        - profunctor
+        - record
+        - refs
+        - safe-coerce
+        - st
+        - strings
+        - tailrec
+        - transformers
+        - tuples
+        - type-equality
+        - typelevel-prelude
+        - unfoldable
+        - unsafe-coerce
+        - variant
+        - yoga-json
+        - yoga-tree
+    common:
+      path: common
       dependencies:
         - aff
         - console
         - effect
         - language-cst-parser
+        - lists
         - node-glob-basic
         - prelude
+        - yoga-json
       test_dependencies: []
       build_plan:
         - aff
@@ -37,6 +115,7 @@ workspace:
         - identity
         - integers
         - invariant
+        - js-bigints
         - js-date
         - language-cst-parser
         - lazy
@@ -61,6 +140,7 @@ workspace:
         - posix-types
         - prelude
         - profunctor
+        - record
         - refs
         - safe-coerce
         - st
@@ -72,6 +152,87 @@ workspace:
         - typelevel-prelude
         - unfoldable
         - unsafe-coerce
+        - variant
+        - yoga-json
+        - yoga-tree
+    server:
+      path: server
+      dependencies:
+        - aff
+        - common
+        - console
+        - debug
+        - effect
+      test_dependencies: []
+      build_plan:
+        - aff
+        - arraybuffer-types
+        - arrays
+        - bifunctors
+        - catenable-lists
+        - common
+        - console
+        - const
+        - contravariant
+        - control
+        - datetime
+        - debug
+        - distributive
+        - effect
+        - either
+        - enums
+        - exceptions
+        - exists
+        - foldable-traversable
+        - foreign
+        - foreign-object
+        - free
+        - functions
+        - functors
+        - gen
+        - identity
+        - integers
+        - invariant
+        - js-bigints
+        - js-date
+        - language-cst-parser
+        - lazy
+        - lists
+        - maybe
+        - newtype
+        - node-buffer
+        - node-event-emitter
+        - node-fs
+        - node-glob-basic
+        - node-path
+        - node-process
+        - node-streams
+        - nonempty
+        - now
+        - nullable
+        - numbers
+        - ordered-collections
+        - orders
+        - parallel
+        - partial
+        - posix-types
+        - prelude
+        - profunctor
+        - record
+        - refs
+        - safe-coerce
+        - st
+        - strings
+        - tailrec
+        - transformers
+        - tuples
+        - type-equality
+        - typelevel-prelude
+        - unfoldable
+        - unsafe-coerce
+        - variant
+        - yoga-json
+        - yoga-tree
   package_set:
     address:
       registry: 53.2.0
@@ -694,6 +855,13 @@ packages:
       - partial
       - prelude
       - tuples
+  debug:
+    type: registry
+    version: 6.0.2
+    integrity: sha256-vmkYFuXYuELBzeauvgHG6E6Kf/Hp1dAnxwE9ByHfwSg=
+    dependencies:
+      - functions
+      - prelude
   distributive:
     type: registry
     version: 6.0.0
@@ -877,6 +1045,14 @@ packages:
     integrity: sha256-RGWWyYrz0Hs1KjPDA+87Kia67ZFBhfJ5lMGOMCEFoLo=
     dependencies:
       - control
+      - prelude
+  js-bigints:
+    type: registry
+    version: 2.2.1
+    integrity: sha256-hKWZo9NxtsAaHmNXr6B8GY4c0olQbYLXPVGWm4TF2Ss=
+    dependencies:
+      - integers
+      - maybe
       - prelude
   js-date:
     type: registry
@@ -1163,6 +1339,14 @@ packages:
       - newtype
       - prelude
       - tuples
+  record:
+    type: registry
+    version: 4.0.0
+    integrity: sha256-Za5U85bTRJEfGK5Sk4hM41oXy84YQI0I8TL3WUn1Qzg=
+    dependencies:
+      - functions
+      - prelude
+      - unsafe-coerce
   refs:
     type: registry
     version: 6.0.0
@@ -1274,3 +1458,64 @@ packages:
     version: 6.0.0
     integrity: sha256-IqIYW4Vkevn8sI+6aUwRGvd87tVL36BBeOr0cGAE7t0=
     dependencies: []
+  variant:
+    type: registry
+    version: 8.0.0
+    integrity: sha256-SR//zQDg2dnbB8ZHslcxieUkCeNlbMToapvmh9onTtw=
+    dependencies:
+      - enums
+      - lists
+      - maybe
+      - partial
+      - prelude
+      - record
+      - tuples
+      - unsafe-coerce
+  yoga-json:
+    type: registry
+    version: 5.1.0
+    integrity: sha256-ei/fyvrh8fGgcqGrdRQ7+r6dwSYcfEGOFf5yKc1g7oE=
+    dependencies:
+      - arrays
+      - bifunctors
+      - control
+      - datetime
+      - effect
+      - either
+      - exceptions
+      - foldable-traversable
+      - foreign
+      - foreign-object
+      - free
+      - identity
+      - integers
+      - js-bigints
+      - js-date
+      - lists
+      - maybe
+      - newtype
+      - nullable
+      - numbers
+      - ordered-collections
+      - partial
+      - prelude
+      - record
+      - strings
+      - transformers
+      - tuples
+      - typelevel-prelude
+      - unsafe-coerce
+      - variant
+      - yoga-tree
+  yoga-tree:
+    type: registry
+    version: 1.0.0
+    integrity: sha256-wBjfEYrX1ffTHa/mE9B26C6td0FFfjYNnysTJ9/N8Hc=
+    dependencies:
+      - arrays
+      - control
+      - foldable-traversable
+      - free
+      - maybe
+      - prelude
+      - tailrec

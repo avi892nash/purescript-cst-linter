@@ -1,0 +1,12 @@
+package:
+  name: server
+  main: ServerLSP
+  dependencies:
+    - aff
+    - common
+    - console
+    - debug
+    - effect
+  test:
+    main: Test.Main
+    dependencies: []

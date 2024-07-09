@@ -1,0 +1,14 @@
+package:
+  name: common
+  dependencies:
+    - aff
+    - console
+    - effect
+    - language-cst-parser
+    - lists
+    - node-glob-basic
+    - prelude
+    - yoga-json
+  test:
+    main: Test.Main
+    dependencies: []

@@ -20,7 +20,7 @@ import PureScript.CST.Traversal (foldMapModule)
 import PureScript.CST.Types as CST
 
 
-type PSLintConfig = {
+type PSLint = {
   src :: String, -- "src/**/*.purs"
   lintModule :: CST.Module Void -> (Array (String /\ CST.SourceRange)),
   lintDecl :: CST.Declaration Void -> (Array (String /\ CST.SourceRange)),
@@ -29,7 +29,7 @@ type PSLintConfig = {
   lintType :: CST.Type Void -> (Array (String /\ CST.SourceRange))
 }
 
-runPSLint :: PSLintConfig -> (Either String (Array (String /\ CST.SourceRange)) -> Effect Unit) -> Effect Unit
+runPSLint :: PSLint -> (Either String (Array (String /\ CST.SourceRange)) -> Effect Unit) -> Effect Unit
 runPSLint config fn = launchAff_ $ do 
     files :: Array String <- (pure <<< S.toUnfoldable) =<< expandGlobsCwd [ config.src ]
     if files == []
@@ -44,7 +44,7 @@ runPSLint config fn = launchAff_ $ do
 
 
 
-lintModule :: String -> PSLintConfig -> Array (String /\ CST.SourceRange)
+lintModule :: String -> PSLint -> Array (String /\ CST.SourceRange)
 lintModule content config = 
   case parseModule content of
     ParseSucceeded m -> 

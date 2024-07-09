@@ -1,0 +1,11 @@
+package:
+  name: client
+  main: ClientLSP
+  dependencies:
+    - aff
+    - console
+    - effect
+    - common
+  test:
+    main: Test.Main
+    dependencies: []

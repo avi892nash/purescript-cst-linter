@@ -4,31 +4,46 @@ import Prelude
 
 import Capabilities.Diagnostic (handleDiagnosticRequest)
 import Capabilities.Initialize (handleIntializeRequest)
+import Capabilities.TextDocumentSync (handleChangeTextDoc)
 import Data.Either (Either(..))
-import Data.Maybe (fromMaybe)
+import Data.Map as Map
+import Data.Maybe (Maybe(..))
 import Data.Nullable as N
 import Debug (spy)
 import Effect (Effect)
 import Effect.Class.Console as Console
+import Effect.Ref (Ref)
+import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import Foreign (Foreign)
 import Node.EventEmitter as EE
 import Node.Process as P
+import PSLint.Types (PSLintConfig)
 import Types (Response(..))
 import Unsafe.Coerce (unsafeCoerce)
-import Yoga.JSON (class ReadForeign, class WriteForeign, read, writeImpl)
+import Yoga.JSON (class ReadForeign, class WriteForeign, read, write, writeImpl, writeJSON)
 
 
-
-ipcInputHandler ∷ Effect Unit
-ipcInputHandler = do
+ipcInputHandler ∷ Ref PSLintConfig -> Ref (Map.Map String String) -> Effect Unit
+ipcInputHandler psLintConfig currentDocChanges = do
   EE.on_ P.messageH (\fgn _ -> do
         case read fgn :: _ { method :: String } of
           Right { method } -> do
+            -- t <- Ref.read currentDocChanges 
+            -- let _ = spy "Avinash" t
+            -- let _ = spy "Avinash" fgn
             Console.log $ "Request: " <> method
             case method of
-              "initialize" -> handleResponse (handleIntializeRequest >>> ipcResponseHandler method) fgn
-              "textDocument/diagnostic" -> handleResponse (handleDiagnosticRequest >>> ipcResponseHandler method) fgn
+              "initialized" -> do
+                config <- Ref.read psLintConfig
+                Console.log $ "Initialized by : " <> writeJSON config 
+              "initialize" -> handleResponse (handleIntializeRequest psLintConfig >=> ipcResponseHandler method) fgn
+              "textDocument/diagnostic" -> do
+                config <- Ref.read psLintConfig 
+                handleResponse (handleDiagnosticRequest config currentDocChanges >=> ipcResponseHandler method) fgn
+                pure unit
+              "textDocument/didChange" -> do
+                handleResponse (handleChangeTextDoc currentDocChanges) fgn
               _ -> pure unit
           Left err -> let _ = spy (show err) fgn in pure unit
       ) P.process
@@ -46,4 +61,12 @@ ipcResponseHandler method (Response val) = do
   pure unit
 
 main ∷ Unit
-main = unsafePerformEffect ipcInputHandler 
+main = unsafePerformEffect $ do
+  psLintConfig <- Ref.new { files : ["src/**/*.purs"], ignore: [], rules : 
+    { "mandatory-signature" : Nothing
+    , "no-array-jsx" : Nothing
+    , "no-class-constraint" : Nothing
+    , "dom-syntax-safety" :Nothing
+    } }
+  currentDocChanges <- Ref.new Map.empty
+  ipcInputHandler psLintConfig currentDocChanges

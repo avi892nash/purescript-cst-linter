@@ -21,6 +21,11 @@ type ClientCapabilities = {}
 
 type Message r = (jsonrpc :: String | r)
 
+newtype NotificationMessage a = NotificationMessage (Record (Message (method :: String, params :: a)))
+
+instance ReadForeign a => ReadForeign (NotificationMessage a) where
+  readImpl fgn = NotificationMessage <$> readImpl fgn 
+
 newtype Request a = Request (Record (Message (id :: Int, method :: String, params :: a)))
 
 instance ReadForeign a => ReadForeign (Request a) where
@@ -51,8 +56,6 @@ instance WriteForeign ErrorCodes where
       MethodNotFound -> writeImpl (-32601)
       InvalidParams -> writeImpl (-32602)
       InternalError -> writeImpl (-32603)
-
-data NotificationMessage = NotificationMessage (Record (Message (method :: String, params :: Foreign)))
 
 data Encoding = UTF8 | UTF16 | UTF32
 

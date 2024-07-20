@@ -4,7 +4,7 @@ import Prelude
 
 import Capabilities.Diagnostic (handleDiagnosticRequest)
 import Capabilities.Initialize (handleIntializeRequest)
-import Capabilities.TextDocumentSync (handleChangeTextDoc)
+import Capabilities.TextDocumentSync (handleChangeTextDoc, handleDidOpen, handleDidSave)
 import Data.Either (Either(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
@@ -42,6 +42,10 @@ ipcInputHandler psLintConfig currentDocChanges = do
                 config <- Ref.read psLintConfig 
                 handleResponse (handleDiagnosticRequest config currentDocChanges >=> ipcResponseHandler method) fgn
                 pure unit
+              "textDocument/didSave" -> do
+                handleResponse (handleDidSave currentDocChanges) fgn
+              "textDocument/didOpen" -> do
+                handleResponse (handleDidOpen currentDocChanges) fgn 
               "textDocument/didChange" -> do
                 handleResponse (handleChangeTextDoc currentDocChanges) fgn
               _ -> pure unit

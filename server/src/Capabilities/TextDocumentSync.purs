@@ -13,7 +13,7 @@ import Effect (Effect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Foreign (Foreign)
-import Types (NotificationMessage(..), Request(..))
+import Types (NotificationMessage(..), Request(..), TextDocumentIdentifier)
 import Yoga.JSON (class ReadForeign, read, readImpl)
 
 
@@ -55,3 +55,18 @@ handleChangeTextDoc refDocMap (NotificationMessage { params : DidChangeTextDocum
   _ <- Ref.modify (Map.insert req.textDocument.uri newContent) refDocMap
   pure unit
 
+type DidSaveTextDocumentParams = { textDocument :: TextDocumentIdentifier (), text :: Maybe String }
+
+handleDidSave :: Ref (Map.Map String String) -> NotificationMessage DidSaveTextDocumentParams -> Effect Unit
+handleDidSave refDocMap (NotificationMessage { params : {textDocument, text} }) = do 
+  case text of
+    Just val -> void $ Ref.modify (Map.insert textDocument.uri val) refDocMap 
+    Nothing -> pure unit
+
+
+type DidOpenTextDocumentParams = { textDocument :: TextDocumentItem }
+type TextDocumentItem = { uri :: String, languageId :: String, version :: Int, text :: String }
+
+handleDidOpen :: Ref (Map.Map String String) -> NotificationMessage DidOpenTextDocumentParams -> Effect Unit
+handleDidOpen refDocMap (NotificationMessage { params : { textDocument : {uri, text} }}) = do 
+  void $ Ref.modify (Map.insert uri text) refDocMap

@@ -2,7 +2,6 @@ module Capabilities.Initialize where
 
 import Prelude
 
-import PSLint.Types (PSLintConfig)
 import Control.Monad.Error.Class (try)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -12,6 +11,7 @@ import Foreign (Foreign)
 import Node.Buffer (toString)
 import Node.Encoding as Encoding
 import Node.FS.Sync (readFile)
+import PSLint.Types (PSLintConfig)
 import Types (ClientCapabilities, DiagnosticProvider(..), Encoding, Request(..), Response(..), ResponseError(..), TextDocumentSync(..), TextDocumentSyncKind(..), TraceValue, WorkDoneProgressOptions, WorkspaceFolder)
 import Version (version)
 import Yoga.JSON (class ReadForeign, class WriteForeign, readImpl, readJSON, writeImpl)
@@ -42,11 +42,12 @@ instance WriteForeign InitializeResult where
   writeImpl (InitializeResult res) = writeImpl res
 
 
-data ServerCapabilities = ServerCapabilities {
-  positionEncoding :: Maybe Encoding
-, textDocumentSync :: Maybe TextDocumentSync
-, diagnosticProvider :: Maybe DiagnosticProvider
-}
+data ServerCapabilities
+  = ServerCapabilities 
+  { positionEncoding :: Maybe Encoding
+  , textDocumentSync :: Maybe TextDocumentSync
+  , diagnosticProvider :: Maybe DiagnosticProvider
+  }
 
 instance WriteForeign ServerCapabilities where
   writeImpl (ServerCapabilities p) = writeImpl p
@@ -68,7 +69,7 @@ handleIntializeRequest refpsLintConfig (Request {id, params : InitializeParams _
                         ServerCapabilities 
                           { positionEncoding : Nothing
                           , diagnosticProvider : Just $ DiagnosticOptions { identifier : Nothing, interFileDependencies : false, workspaceDiagnostics : false, workDoneProgress : Nothing }
-                          , textDocumentSync : Just $ TextDocumentSyncKind Full }
+                          , textDocumentSync : Just $ TextDocumentSyncOptions { openClose : Just true, change : Just Full, save : { includeText : Just true }} }
                     , serverInfo : Just { name : "pslint-server", version : Just version }
                     }
               , error : Nothing }

@@ -7,9 +7,7 @@ import Control.Monad.Except (throwError)
 import Data.Either (Either(..))
 import Data.List.NonEmpty as NEL
 import Data.Maybe (Maybe)
-import Data.Tuple.Nested (type (/\))
 import Foreign (ForeignError(..))
-import PureScript.CST.Types as CST
 import Rules.DomSyntaxSafety (DomSyntaxConfig)
 import Yoga.JSON (class ReadForeign, class WriteForeign, read, readImpl, writeImpl)
 
@@ -45,4 +43,4 @@ type PSLintConfig
     , "no-class-constraint" :: Maybe (RulesConfig {})
     , "dom-syntax-safety" :: Maybe (RulesConfig DomSyntaxConfig)
     } 
-  }
+}

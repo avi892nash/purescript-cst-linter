@@ -6,7 +6,6 @@ module Rules.DomSyntaxSafety
   where
 
 import Prelude
-import Utils (PSLint, defaultLinter)
 
 import Control.Monad.Error.Class (throwError)
 import Data.Array (find, head, tail)
@@ -15,9 +14,11 @@ import Data.List.NonEmpty as NEL
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String as S
 import Data.Tuple.Nested (type (/\), (/\))
+import Debug (spy)
 import Foreign (ForeignError(..))
 import PureScript.CST.Range (rangeOf)
 import PureScript.CST.Types as CST
+import Utils (PSLint, defaultLinter)
 import Yoga.JSON (class ReadForeign, class WriteForeign, readImpl, writeImpl)
 
 type DomSyntaxConfig = { exprApp :: Array { name :: String, syntax :: Array Syntax, strict :: Maybe Boolean } }
@@ -56,6 +57,10 @@ lintDomSyntaxSafety doms =
                   let params = NE.toArray b
                   recursiveParse strict (rangeOf e) params syntax
                 _ -> [] 
+            e@(CST.ExprOp (CST.ExprApp (CST.ExprIdent (CST.QualifiedName { name : CST.Ident name })) _) _) -> Prelude.do
+              case find (\{name: n} -> n == S.trim name) doms.exprApp of
+                Just _ -> ["Operator inside a dom call is not allowed" /\ (rangeOf e)]
+                Nothing -> [] 
             _ -> []
       } 
   where

@@ -78,7 +78,7 @@ instance WriteForeign TextDocumentSyncKind where
   writeImpl Incremental = writeImpl 2
 
 data TextDocumentSync
-  = TextDocumentSyncOptions { openClose :: Maybe Boolean, change :: Maybe TextDocumentSyncKind }
+  = TextDocumentSyncOptions { openClose :: Maybe Boolean, change :: Maybe TextDocumentSyncKind, save :: { includeText :: Maybe Boolean } }
   | TextDocumentSyncKind TextDocumentSyncKind
 
 instance WriteForeign TextDocumentSync where

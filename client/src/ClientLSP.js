@@ -26,7 +26,7 @@ export function activate (context) {
    const clientOptions = {
     documentSelector: [{ scheme: 'file', language: 'purescript' }],
     synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher('**/.pslint')
+      fileEvents: vscode.workspace.createFileSystemWatcher('**/.pslintrc')
     }
   };
 

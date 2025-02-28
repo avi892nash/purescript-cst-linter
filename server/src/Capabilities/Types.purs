@@ -26,7 +26,7 @@ newtype NotificationMessage a = NotificationMessage (Record (Message (method :: 
 instance ReadForeign a => ReadForeign (NotificationMessage a) where
   readImpl fgn = NotificationMessage <$> readImpl fgn 
 
-newtype Request a = Request (Record (Message (id :: Int, method :: String, params :: a)))
+newtype Request a = Request (Record (Message (id :: Maybe Int, method :: String, params :: a)))
 
 instance ReadForeign a => ReadForeign (Request a) where
   readImpl fgn = Request <$> readImpl fgn 
@@ -131,3 +131,8 @@ instance ReadForeign StringOrInt where
 instance WriteForeign StringOrInt where
   writeImpl (String str) = writeImpl str
   writeImpl (Int val) = writeImpl val
+
+type ShowMessageParams = {
+  type :: Int,
+  message :: String
+}

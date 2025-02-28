@@ -14,7 +14,7 @@ import Data.List.NonEmpty as NEL
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.String as S
 import Data.Tuple.Nested (type (/\), (/\))
-import Debug (spy)
+-- import Debug (spy)
 import Foreign (ForeignError(..))
 import PureScript.CST.Range (rangeOf)
 import PureScript.CST.Types as CST

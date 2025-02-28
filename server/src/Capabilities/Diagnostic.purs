@@ -135,7 +135,7 @@ handleDiagnosticRequest config refCurrentDocChanges (Request {id, params : (Docu
 
   pure $ Response 
       { jsonrpc : "2.0"
-      , id : Just id
+      , id : id
       , error : Nothing
       , result : RelatedFullDocumentDiagnosticReport { relatedDocuments : Nothing, resultId : Nothing, items : response } 
       }

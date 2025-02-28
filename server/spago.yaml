@@ -1,6 +1,5 @@
 package:
   name: server
-  main: ServerLSP
   dependencies:
     - aff
     - common

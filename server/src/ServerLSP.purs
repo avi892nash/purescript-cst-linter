@@ -19,9 +19,9 @@ import Foreign (Foreign)
 import Node.EventEmitter as EE
 import Node.Process as P
 import PSLint.Types (PSLintConfig)
-import Types (Response(..))
+import Types (Request(..), Response(..))
 import Unsafe.Coerce (unsafeCoerce)
-import Yoga.JSON (class ReadForeign, class WriteForeign, read, write, writeImpl, writeJSON)
+import Yoga.JSON (class ReadForeign, class WriteForeign, read, writeImpl, writeJSON)
 
 
 ipcInputHandler ∷ Ref PSLintConfig -> Ref (Map.Map String String) -> Effect Unit
@@ -37,7 +37,7 @@ ipcInputHandler psLintConfig currentDocChanges = do
               "initialized" -> do
                 config <- Ref.read psLintConfig
                 Console.log $ "Initialized by : " <> writeJSON config 
-              "initialize" -> handleResponse (handleIntializeRequest psLintConfig >=> ipcResponseHandler method) fgn
+              "initialize" -> handleResponse (handleIntializeRequest psLintConfig (ipcResponseHandler method) ipcRequestSend) fgn
               "textDocument/diagnostic" -> do
                 config <- Ref.read psLintConfig 
                 handleResponse (handleDiagnosticRequest config currentDocChanges >=> ipcResponseHandler method) fgn
@@ -49,7 +49,7 @@ ipcInputHandler psLintConfig currentDocChanges = do
               "textDocument/didChange" -> do
                 handleResponse (handleChangeTextDoc currentDocChanges) fgn
               _ -> pure unit
-          Left err -> let _ = spy (show err) fgn in pure unit
+          Left err -> let _ = spy ("Error in Decoding Request : " <> show err) fgn in pure unit
       ) P.process
   where
     handleResponse :: forall a. ReadForeign a => (a -> Effect Unit) -> Foreign -> Effect Unit
@@ -61,7 +61,13 @@ ipcInputHandler psLintConfig currentDocChanges = do
 ipcResponseHandler :: forall a. WriteForeign a => String -> Response a -> Effect Unit
 ipcResponseHandler method (Response val) = do
   _ <- P.unsafeSend (unsafeCoerce $ writeImpl val) N.null
-  Console.log $ "Response: " <> method
+  Console.log $ "Response: " <> method <> ": " <> writeJSON val
+  pure unit
+
+ipcRequestSend :: forall a. WriteForeign a => Request a -> Effect Unit
+ipcRequestSend (Request val) = do
+  _ <- P.unsafeSend (unsafeCoerce $ writeImpl val) N.null
+  Console.log $ "Query from Server: " <> writeJSON val 
   pure unit
 
 main ∷ Unit

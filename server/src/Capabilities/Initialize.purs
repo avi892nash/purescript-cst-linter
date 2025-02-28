@@ -12,7 +12,7 @@ import Node.Buffer (toString)
 import Node.Encoding as Encoding
 import Node.FS.Sync (readFile)
 import PSLint.Types (PSLintConfig)
-import Types (ClientCapabilities, DiagnosticProvider(..), Encoding, Request(..), Response(..), ResponseError(..), TextDocumentSync(..), TextDocumentSyncKind(..), TraceValue, WorkDoneProgressOptions, WorkspaceFolder)
+import Types (ClientCapabilities, DiagnosticProvider(..), Encoding, Request(..), Response(..), ResponseError(..), TextDocumentSync(..), TextDocumentSyncKind(..), TraceValue, WorkspaceFolder, WorkDoneProgressOptions)
 import Version (version)
 import Yoga.JSON (class ReadForeign, class WriteForeign, readImpl, readJSON, writeImpl)
 
@@ -47,40 +47,58 @@ data ServerCapabilities
   { positionEncoding :: Maybe Encoding
   , textDocumentSync :: Maybe TextDocumentSync
   , diagnosticProvider :: Maybe DiagnosticProvider
+  , window :: Maybe { showMessage :: Maybe { messageActionItem :: Maybe { additionalPropertiesSupport :: Maybe Boolean }}}
+  , executeCommandProvider :: Maybe (Record (WorkDoneProgressOptions(commands :: Array String )))
   }
 
 instance WriteForeign ServerCapabilities where
   writeImpl (ServerCapabilities p) = writeImpl p
 
-handleIntializeRequest :: Ref PSLintConfig -> Request InitializeParams -> Effect (Response InitializeResult)
-handleIntializeRequest refpsLintConfig (Request {id, params : InitializeParams _}) = do
+handleIntializeRequest :: Ref PSLintConfig -> (forall a. WriteForeign a => Response a -> Effect Unit) -> (forall b. WriteForeign b => Request b -> Effect Unit) -> Request InitializeParams -> Effect Unit
+handleIntializeRequest refpsLintConfig callbackResp ipcRequestSend (Request {id, params : InitializeParams _})  = do
+  mbSpagoDhall <- try $ toString Encoding.UTF8 =<< readFile "./spago.dhall"
   eiContent <- try $ toString Encoding.UTF8 =<< readFile "./.pslintrc"
-  case eiContent of
-    Right content -> 
+  case mbSpagoDhall, eiContent of
+    Right _, Right content -> 
       case readJSON content :: _ PSLintConfig of
         Right psLintConfig -> do
             write psLintConfig refpsLintConfig 
-            pure $ Response 
+            callbackResp serverInfo 
+        Left err -> do
+          callbackResp serverInfo
+          ipcRequestSend $ wrongDirectory $ "Error: eslintrc parsing failed. Write a proper json. => " <> show err
+    Left _, _ -> do
+      callbackResp serverInfo
+      ipcRequestSend $ wrongDirectory "Error: The specified directory does not contain spago.dhall file"
+    _, Left _ -> do
+      callbackResp serverInfo
+      ipcRequestSend $ wrongDirectory "Error: The specified directory does not contain .pslintrc file"
+  where
+    wrongDirectory message = Request
+      { jsonrpc: "2.0"
+      , method: "window/showMessage"
+      , id : Nothing
+      , params : 
+          { "type": 1 
+          , "message": message -- 
+          }
+      }
+    serverInfo = Response 
               { jsonrpc : "2.0"
-              , id : Just id
+              , id : id
               , result : 
-                  InitializeResult 
+                  Just $ InitializeResult 
                     { capabilities : 
                         ServerCapabilities 
                           { positionEncoding : Nothing
                           , diagnosticProvider : Just $ DiagnosticOptions { identifier : Nothing, interFileDependencies : false, workspaceDiagnostics : false, workDoneProgress : Nothing }
-                          , textDocumentSync : Just $ TextDocumentSyncOptions { openClose : Just true, change : Just Full, save : { includeText : Just true }} }
+                          , textDocumentSync : Just $ TextDocumentSyncOptions { openClose : Just true, change : Just Full, save : { includeText : Just true }}
+                          , window : Nothing
+                          , executeCommandProvider: Just {
+                              commands: ["pslint.lintall"],
+                              workDoneProgress : Nothing
+                            }
+                          }
                     , serverInfo : Just { name : "pslint-server", version : Just version }
                     }
               , error : Nothing }
-        Left err -> pure $ error $ ResponseError { code : -32700, message : "Cannot parse .pslintrc file : " <> show err , data : Nothing}
-    Left err -> pure $ error $ ResponseError { code : -32700, message : "Cannot find and read .eslintrc file : " <> show err , data : Nothing }
-  where
-    error msg = 
-      Response 
-        { jsonrpc : "2.0"
-        , error : Just msg
-        , id : Just id
-        , result : InitializeResult { capabilities : ServerCapabilities { positionEncoding : Nothing, diagnosticProvider : Nothing, textDocumentSync : Nothing }
-                    , serverInfo : Just { name : "pslint-server", version : Just version }}
-        } 

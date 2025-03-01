@@ -12,7 +12,7 @@ import Effect.Aff (Aff)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Foreign (Foreign, ForeignError(..), fail)
-import PSLint (lint, lintModule)
+import PSLint (lintModule)
 import PSLint.Types as PSLint
 import PureScript.CST.Types as CST
 import Record (merge)
@@ -24,6 +24,9 @@ import Types (PartialResultParams, Request(..), Response(..), StringOrInt, TextD
 import Yoga.JSON (class ReadForeign, class WriteForeign, read, readImpl, writeImpl)
 
 
+type DidCloseTextDocumentParams = {
+  textDocument :: TextDocumentIdentifier () 
+}
 
 newtype DocumentDiagnosticParams 
   = DocumentDiagnosticParams 
@@ -105,35 +108,27 @@ instance WriteForeign Diagnostic where
   writeImpl (Diagnostic val) = writeImpl val
 
 
-handleDiagnosticRequest :: PSLint.PSLintConfig -> Ref (Map.Map String String) -> Request DocumentDiagnosticParams -> Effect (Response DocumentDiagnosticReport)
-handleDiagnosticRequest config refCurrentDocChanges (Request {id, params : (DocumentDiagnosticParams p) }) = do
+handleDiagnosticRequest :: PSLint.PSLintConfig -> Ref (Map.Map String String) -> (forall a. WriteForeign a => Response a -> Effect Unit) -> (String -> Effect Unit) -> Request DocumentDiagnosticParams -> Effect Unit
+handleDiagnosticRequest config refCurrentDocChanges callbackResponse clearDiagonostic (Request {id, params : (DocumentDiagnosticParams p)}) = do
   currentTextChange <- Ref.read refCurrentDocChanges
   let mbContent = Map.lookup p.textDocument.uri currentTextChange
-      mandatorySignatureReport =
-        case config.rules."mandatory-signature" of
-          Just PSLint.Error -> makeDiagnosticErrorReport <<< lintModule R.lintMandatorySignature
-          Just PSLint.Warn  -> makeDiagnosticWarnReport <<< lintModule R.lintMandatorySignature
-          _ -> \_ -> []
-      noArrayJSXReport =
-        case config.rules."no-array-jsx" of
-          Just PSLint.Error -> makeDiagnosticErrorReport <<< lintModule R.lintNoArrayJSX
-          Just PSLint.Warn  -> makeDiagnosticWarnReport <<< lintModule R.lintNoArrayJSX
-          _ -> \_ -> [] 
-      domSyntaxSafetyReport =
-        case config.rules."dom-syntax-safety" of
-          Just (PSLint.Config conf)-> makeDiagnosticErrorReport <<< lintModule (R.lintDomSyntaxSafety conf)
-          _ -> \_ -> [] 
-      noClassConstraintsReport =
-        case config.rules."no-class-constraint" of
-          Just PSLint.Error -> makeDiagnosticErrorReport <<< lintModule R.lintNoClassConstraints 
-          Just PSLint.Warn -> makeDiagnosticWarnReport <<< lintModule R.lintNoClassConstraints 
-          _ -> \_ -> []
-      
-  let diagnosticGenerator = \content -> foldMap (\fn -> fn content) [mandatorySignatureReport, noArrayJSXReport, domSyntaxSafetyReport, noClassConstraintsReport] 
   
-  let response = maybe [] diagnosticGenerator mbContent
+  let response = 
+        case mbContent of
+          Just content -> 
+            foldMap 
+              (\{ status, ranges } -> 
+                case status of
+                  "error" -> makeDiagnosticErrorReport ranges
+                  "warn" -> makeDiagnosticWarnReport ranges
+                  _ -> []
+              ) $
+              lintModule config p.textDocument.uri content 
+          Nothing -> []
+  -- To clear diagonostic from allFiles 
+  clearDiagonostic p.textDocument.uri 
 
-  pure $ Response 
+  callbackResponse $ Response 
       { jsonrpc : "2.0"
       , id : id
       , error : Nothing

@@ -94,10 +94,7 @@ handleIntializeRequest refpsLintConfig callbackResp ipcRequestSend (Request {id,
                           , diagnosticProvider : Just $ DiagnosticOptions { identifier : Nothing, interFileDependencies : false, workspaceDiagnostics : false, workDoneProgress : Nothing }
                           , textDocumentSync : Just $ TextDocumentSyncOptions { openClose : Just true, change : Just Full, save : { includeText : Just true }}
                           , window : Nothing
-                          , executeCommandProvider: Just {
-                              commands: ["pslint.lintall"],
-                              workDoneProgress : Nothing
-                            }
+                          , executeCommandProvider: Nothing
                           }
                     , serverInfo : Just { name : "pslint-server", version : Just version }
                     }

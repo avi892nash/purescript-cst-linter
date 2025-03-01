@@ -36,7 +36,9 @@ export function activate (context) {
     serverOptions,
     clientOptions
   );
-  client.start();
+  const clientDisposable = client.start();
+  context.subscriptions.push(clientDisposable);
+
 }
 
 /**

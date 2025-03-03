@@ -6,55 +6,17 @@ import Control.Monad.Error.Class (try)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Effect.Ref (Ref, write)
-import Foreign (Foreign)
+import Effect.Ref (Ref, modify, write)
 import Node.Buffer (toString)
 import Node.Encoding as Encoding
 import Node.FS.Sync (readFile)
 import PSLint.Types (PSLintConfig)
-import Types (ClientCapabilities, DiagnosticProvider(..), Encoding, Request(..), Response(..), ResponseError(..), TextDocumentSync(..), TextDocumentSyncKind(..), TraceValue, WorkspaceFolder, WorkDoneProgressOptions)
+import Types (DiagnosticProvider(..), InitializeParams(..), InitializeResult(..), Request(..), Response(..), ServerCapabilities(..), TextDocumentSync(..), TextDocumentSyncKind(..), LintState)
 import Version (version)
-import Yoga.JSON (class ReadForeign, class WriteForeign, readImpl, readJSON, writeImpl)
-
-newtype InitializeParams
-  = InitializeParams 
-      (Record (WorkDoneProgressOptions
-        ( processId :: Maybe Int
-        , clientInfo :: Maybe { name :: String, version :: Maybe String }
-        , locale :: Maybe String
-        , rootPath :: Maybe String
-        , rootUri :: Maybe String
-        , initializationOptions :: Maybe Foreign
-        , capabilities :: ClientCapabilities
-        , trace :: Maybe TraceValue
-        , workspaceFolders :: Maybe (Array WorkspaceFolder)
-        )
-      ))
-
-instance ReadForeign InitializeParams where
-  readImpl fgn = InitializeParams <$> readImpl fgn
-
-newtype InitializeResult = InitializeResult {
-  capabilities :: ServerCapabilities,
-  serverInfo :: Maybe { name :: String, version :: Maybe String }
-}
-instance WriteForeign InitializeResult where
-  writeImpl (InitializeResult res) = writeImpl res
+import Yoga.JSON (class WriteForeign, readJSON)
 
 
-data ServerCapabilities
-  = ServerCapabilities 
-  { positionEncoding :: Maybe Encoding
-  , textDocumentSync :: Maybe TextDocumentSync
-  , diagnosticProvider :: Maybe DiagnosticProvider
-  , window :: Maybe { showMessage :: Maybe { messageActionItem :: Maybe { additionalPropertiesSupport :: Maybe Boolean }}}
-  , executeCommandProvider :: Maybe (Record (WorkDoneProgressOptions(commands :: Array String )))
-  }
-
-instance WriteForeign ServerCapabilities where
-  writeImpl (ServerCapabilities p) = writeImpl p
-
-handleIntializeRequest :: Ref PSLintConfig -> (forall a. WriteForeign a => Response a -> Effect Unit) -> (forall b. WriteForeign b => Request b -> Effect Unit) -> Request InitializeParams -> Effect Unit
+handleIntializeRequest :: LintState -> (forall a. WriteForeign a => Response a -> Effect Unit) -> (forall b. WriteForeign b => Request b -> Effect Unit) -> Request InitializeParams -> Effect Unit
 handleIntializeRequest refpsLintConfig callbackResp ipcRequestSend (Request {id, params : InitializeParams _})  = do
   mbSpagoDhall <- try $ toString Encoding.UTF8 =<< readFile "./spago.dhall"
   eiContent <- try $ toString Encoding.UTF8 =<< readFile "./.pslintrc"
@@ -62,7 +24,7 @@ handleIntializeRequest refpsLintConfig callbackResp ipcRequestSend (Request {id,
     Right _, Right content -> 
       case readJSON content :: _ PSLintConfig of
         Right psLintConfig -> do
-            write psLintConfig refpsLintConfig 
+            write psLintConfig refpsLintConfig.psLintConfig
             callbackResp serverInfo 
         Left err -> do
           callbackResp serverInfo
@@ -99,3 +61,5 @@ handleIntializeRequest refpsLintConfig callbackResp ipcRequestSend (Request {id,
                     , serverInfo : Just { name : "pslint-server", version : Just version }
                     }
               , error : Nothing }
+
+

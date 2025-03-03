@@ -5,8 +5,15 @@ import Prelude
 import Control.Alt ((<|>))
 import Control.Monad.Error.Class (throwError)
 import Data.Either (Either(..))
+import Data.Map as Map
 import Data.Maybe (Maybe)
+import Effect (Effect)
+import Effect.Ref (Ref)
+import Effect.Ref as Ref
 import Foreign (Foreign, ForeignError(..), fail)
+import PSLint.Types (PSLintConfig)
+import PureScript.CST.Types as CST
+import Record (merge)
 import Yoga.JSON (class ReadForeign, class WriteForeign, read, readImpl, writeImpl)
 
 type TextDocumentIdentifier r = { uri :: String | r }
@@ -136,3 +143,171 @@ type ShowMessageParams = {
   type :: Int,
   message :: String
 }
+
+type ModuleStatus = { currentChanges :: String, diagnostics :: Array Diagnostic }
+
+type LintState = {
+  psLintConfig :: Ref PSLintConfig,
+  moduleStatus :: Ref (Map.Map String ModuleStatus),
+  refreshDiagnosticReport :: Maybe String -> Ref.Ref (Map.Map String ModuleStatus) -> Effect Unit,
+  clearDiagnosticReport :: String -> Effect Unit 
+}
+
+
+
+type DidCloseTextDocumentParams = {
+  textDocument :: TextDocumentIdentifier () 
+}
+
+newtype DocumentDiagnosticParams 
+  = DocumentDiagnosticParams 
+      ( Record 
+          (PartialResultParams
+          (WorkDoneProgressParams
+            (identifier :: Maybe String, previousResultId :: Maybe String, textDocument :: TextDocumentIdentifier ())
+          )
+        )
+      )
+
+instance ReadForeign DocumentDiagnosticParams where
+  readImpl fgn = DocumentDiagnosticParams <$> (readImpl fgn)
+
+data DocumentDiagnosticReport
+  = RelatedFullDocumentDiagnosticReport { resultId :: Maybe String, items :: Array Diagnostic, relatedDocuments :: Maybe (Array Foreign)}
+  | RelatedUnchangedDocumentDiagnosticReport { resultId :: String, relatedDocuments :: Maybe (Array Foreign)}
+
+instance WriteForeign DocumentDiagnosticReport where
+  writeImpl (RelatedFullDocumentDiagnosticReport val) = writeImpl (merge val { kind : "full"})
+  writeImpl (RelatedUnchangedDocumentDiagnosticReport val) = writeImpl (merge val { kind : "unchanged"}) 
+
+
+data DiagnosticSeverity = Error | Warning | Information | Hint
+
+instance WriteForeign DiagnosticSeverity where
+  writeImpl Error = writeImpl 1
+  writeImpl Warning = writeImpl 2
+  writeImpl Information = writeImpl 3
+  writeImpl Hint = writeImpl 4
+
+instance ReadForeign DiagnosticSeverity where
+  readImpl fgn =
+    case read fgn :: _ Int of
+      Right 1 -> pure Error
+      Right 2 -> pure Warning
+      Right 3 -> pure Information
+      Right 4 -> pure Hint
+      _ -> fail $ ForeignError "Integer value does not map to DiagnosticSeverity"
+
+data DiagnosticTag = Unnecessary | Deprecated
+
+
+instance WriteForeign DiagnosticTag where
+  writeImpl Unnecessary = writeImpl 1
+  writeImpl Deprecated = writeImpl 2
+
+instance ReadForeign DiagnosticTag where
+  readImpl fgn =
+    case read fgn :: _ Int of
+      Right 1 -> pure Unnecessary
+      Right 2 -> pure Deprecated
+      _ -> fail $ ForeignError "Integer value does not map to DiagnosticTag"
+
+newtype Range = Range CST.SourceRange
+
+instance ReadForeign Range where
+  readImpl fgn = do
+    p <- readImpl fgn :: _ { start :: { line :: Int, character :: Int }, end :: { line :: Int, character :: Int } }
+    pure $ Range { start : { line : p.start.line, column : p.start.character }, end : { line : p.end.line, column : p.end.character } }
+
+instance WriteForeign Range where
+  writeImpl (Range val) = writeImpl { start : { line : val.start.line, character : val.start.column}, end : { line : val.end.line, character : val.end.column}}
+
+newtype Diagnostic
+  = Diagnostic 
+      { range :: Range 
+      , severity :: Maybe DiagnosticSeverity 
+      , code :: Maybe StringOrInt
+      , codeDescription :: Maybe { href :: String }
+      , source :: Maybe String
+      , message :: String
+      , tags :: Maybe DiagnosticTag
+      , relatedInformation :: Maybe (Array { location :: { uri :: String, range :: Range }, message :: String })
+      , data :: Maybe Foreign
+      }
+
+instance WriteForeign Diagnostic where
+  writeImpl (Diagnostic val) = writeImpl val
+
+
+
+
+newtype DidChangeTextDocumentParams =
+  DidChangeTextDocumentParams 
+    { textDocument :: VersionedTextDocumentIdentifier
+    , contentChanges :: Array TextDocumentContentChangeEvent
+    }
+
+instance ReadForeign DidChangeTextDocumentParams where
+  readImpl fgn = DidChangeTextDocumentParams <$> readImpl fgn 
+
+type VersionedTextDocumentIdentifier =
+  { version :: Int
+  , uri :: String
+  }
+
+data TextDocumentContentChangeEvent =
+  TextDocumentContentChangeEventA
+    { range :: Range
+    , rangeLength :: Maybe Int
+    , text :: String
+    }
+  | TextDocumentContentChangeEventB { text :: String }
+
+instance ReadForeign TextDocumentContentChangeEvent where
+  readImpl fgn = (TextDocumentContentChangeEventA <$> readImpl fgn) <|> (TextDocumentContentChangeEventB <$> readImpl fgn)
+
+
+
+type DidOpenTextDocumentParams = { textDocument :: TextDocumentItem }
+type TextDocumentItem = { uri :: String, languageId :: String, version :: Int, text :: String }
+
+type DidSaveTextDocumentParams = { textDocument :: TextDocumentIdentifier (), text :: Maybe String }
+
+
+newtype InitializeParams
+  = InitializeParams 
+      (Record (WorkDoneProgressOptions
+        ( processId :: Maybe Int
+        , clientInfo :: Maybe { name :: String, version :: Maybe String }
+        , locale :: Maybe String
+        , rootPath :: Maybe String
+        , rootUri :: Maybe String
+        , initializationOptions :: Maybe Foreign
+        , capabilities :: ClientCapabilities
+        , trace :: Maybe TraceValue
+        , workspaceFolders :: Maybe (Array WorkspaceFolder)
+        )
+      ))
+
+instance ReadForeign InitializeParams where
+  readImpl fgn = InitializeParams <$> readImpl fgn
+
+newtype InitializeResult = InitializeResult {
+  capabilities :: ServerCapabilities,
+  serverInfo :: Maybe { name :: String, version :: Maybe String }
+}
+instance WriteForeign InitializeResult where
+  writeImpl (InitializeResult res) = writeImpl res
+
+
+data ServerCapabilities
+  = ServerCapabilities 
+  { positionEncoding :: Maybe Encoding
+  , textDocumentSync :: Maybe TextDocumentSync
+  , diagnosticProvider :: Maybe DiagnosticProvider
+  , window :: Maybe { showMessage :: Maybe { messageActionItem :: Maybe { additionalPropertiesSupport :: Maybe Boolean }}}
+  , executeCommandProvider :: Maybe (Record (WorkDoneProgressOptions(commands :: Array String )))
+  }
+
+instance WriteForeign ServerCapabilities where
+  writeImpl (ServerCapabilities p) = writeImpl p

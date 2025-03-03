@@ -2,95 +2,89 @@ module ServerLSP where
 
 import Prelude
 
-import Capabilities.Diagnostic (Diagnostic(..), DidCloseTextDocumentParams, handleDiagnosticRequest, makeDiagnosticErrorReport, makeDiagnosticWarnReport)
+import Capabilities.Diagnostic (handleDiagnosticRequest, makeDiagnosticReport)
 import Capabilities.Initialize (handleIntializeRequest)
 import Capabilities.TextDocumentSync (handleChangeTextDoc, handleDidOpen, handleDidSave)
-import Data.Array (foldMap, length)
+import Data.Array (foldMap)
 import Data.Either (Either(..))
 import Data.Map (lookup)
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Nullable as N
 import Data.Traversable (traverse)
+import Data.Tuple (Tuple(..))
 import Debug (spy)
 import Effect (Effect)
 import Effect.Aff (launchAff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
-import Effect.Ref (Ref)
+import Effect.Ref (modify)
 import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import Foreign (Foreign)
 import Node.EventEmitter as EE
 import Node.Process as P
-import PSLint (lintAllFiles, lintModule)
-import PSLint.Types (PSLintConfig)
-import Types (Request(..), Response(..))
+import PSLint (lintAllFiles)
+import Types (Diagnostic, DidCloseTextDocumentParams, LintState, Request(..), Response(..), ModuleStatus)
 import Unsafe.Coerce (unsafeCoerce)
 import Yoga.JSON (class ReadForeign, class WriteForeign, read, writeImpl, writeJSON)
 
 
-ipcInputHandler ∷ Ref PSLintConfig -> Ref (Map.Map String String) -> Effect Unit
-ipcInputHandler psLintConfig currentDocChanges = do
+ipcInputHandler ∷ LintState -> Effect Unit
+ipcInputHandler lintState = do
   EE.on_ P.messageH (\fgn _ -> do
         case read fgn :: _ { method :: String } of
           Right { method } -> do
             -- t <- Ref.read currentDocChanges 
             -- let _ = spy "Avinash" t
-            let _ = spy "Avinash" fgn
+            -- let _ = spy "Avinash" fgn
             Console.log $ "Request: " <> method
             case method of
               "initialized" -> do
-                config <- Ref.read psLintConfig
+                config <- Ref.read lintState.psLintConfig
                 Console.log $ "Initialized by : " <> writeJSON config
                 _ <- launchAff $ do
+                        config <- liftEffect $ Ref.read lintState.psLintConfig
                         ranges <- lintAllFiles config
-                        traverse
-                          (\{ uri, params } -> do
-                            let diagnostic = foldMap (\p -> 
-                                  case p.status of
-                                    "error" -> makeDiagnosticErrorReport p.ranges
-                                    "warn" -> makeDiagnosticWarnReport p.ranges
-                                    _ -> []
-                                  ) params
-                            if length diagnostic > 0 
-                              then liftEffect $ sendFileDiagnostics uri diagnostic
-                              else pure unit
+                        _ <- liftEffect $ traverse
+                          (\{ uri, params, content } -> do
+                            let diagnostics = foldMap (\p -> makeDiagnosticReport p.status p.ranges) params
+                            modify 
+                              (Map.alter 
+                                (case _ of
+                                  Just o -> Just $ o { diagnostics = diagnostics }
+                                  Nothing -> Just { diagnostics, currentChanges : content }
+                                ) uri
+                              ) lintState.moduleStatus
                           )
                           ranges
+                        liftEffect $ lintState.refreshDiagnosticReport Nothing lintState.moduleStatus
+                        
+                        pure unit
                 pure unit 
                         
 
-              "initialize" -> handleResponse (handleIntializeRequest psLintConfig (ipcResponseHandler method) ipcRequestSend) fgn
+              "initialize" -> handleResponse (handleIntializeRequest lintState (ipcResponseHandler method) ipcRequestSend) fgn
               "textDocument/didClose" -> do
-                config <- Ref.read psLintConfig 
-                documentValue <- Ref.read currentDocChanges
                 handleResponse 
                   (\({params : p} :: { params :: DidCloseTextDocumentParams}) -> do
-                    case lookup p.textDocument.uri documentValue of
-                      Just content -> do
-                        let diagnostic = foldMap (\p -> 
-                                  case p.status of
-                                    "error" -> makeDiagnosticErrorReport p.ranges
-                                    "warn" -> makeDiagnosticWarnReport p.ranges
-                                    _ -> []
-                                  ) $ lintModule config p.textDocument.uri content 
-                        if length diagnostic > 0 
-                          then liftEffect $ sendFileDiagnostics p.textDocument.uri diagnostic
-                          else pure unit
-                      Nothing -> pure unit
+                    -- s <- Ref.read lintState.moduleStatus
+                    -- let _ = spy "Avinash" $ lookup p.textDocument.uri s
+                    lintState.refreshDiagnosticReport (Just p.textDocument.uri) lintState.moduleStatus
                   ) fgn
                 pure unit
               "textDocument/diagnostic" -> do
-                config <- Ref.read psLintConfig 
-                handleResponse (handleDiagnosticRequest config currentDocChanges (ipcResponseHandler method) (\uri -> sendFileDiagnostics uri [])) fgn
+                handleResponse (handleDiagnosticRequest lintState (ipcResponseHandler method)) fgn
                 pure unit
               "textDocument/didSave" -> do
-                handleResponse (handleDidSave currentDocChanges) fgn
+                handleResponse (handleDidSave lintState) fgn
               "textDocument/didOpen" -> do
-                handleResponse (handleDidOpen currentDocChanges) fgn 
+                handleResponse (handleDidOpen lintState) fgn 
               "textDocument/didChange" -> do
-                handleResponse (handleChangeTextDoc currentDocChanges) fgn
+                handleResponse (handleChangeTextDoc lintState) fgn
+              "workspace/didChangeWatchedFiles" -> do
+
+                pure unit
               "shutdown" -> do
                 Console.log "Shutting down server..."
                 -- Clean up any resources
@@ -125,23 +119,53 @@ shutdownResponse (Request { id }) = ipcResponseHandler "shutdown" $ Response
                     , error: Nothing
                     }
 
-sendFileDiagnostics :: String -> Array Diagnostic -> Effect Unit
-sendFileDiagnostics uri diagnostics = do
-  let params = { uri, diagnostics }
-  ipcRequestSend $ Request
-    { jsonrpc: "2.0"
-    , method: "textDocument/publishDiagnostics"
-    , id: Nothing
-    , params: params
-    }
 
 main ∷ Unit
 main = unsafePerformEffect $ do
-  psLintConfig <- Ref.new { files : ["src/**/*.purs"], ignore: [], rules : 
+  psLintConfig <- Ref.new { 
+    files : ["src/**/*.purs"], ignore: [], rules : 
     { "mandatory-signature" : Nothing
     , "no-array-jsx" : Nothing
     , "no-class-constraint" : Nothing
     , "dom-syntax-safety" :Nothing
-    } }
-  currentDocChanges <- Ref.new Map.empty
-  ipcInputHandler psLintConfig currentDocChanges
+    }
+    }
+  moduleStatus <- Ref.new Map.empty
+  let lintState = {
+    psLintConfig,
+    moduleStatus,
+    refreshDiagnosticReport,
+    clearDiagnosticReport : \uri -> sendFileDiagnostics uri []
+  }
+  ipcInputHandler lintState
+  where
+    sendFileDiagnostics :: String -> Array Diagnostic -> Effect Unit
+    sendFileDiagnostics uri diagnostics = do
+      let params = { uri, diagnostics }
+      ipcRequestSend $ Request
+        { jsonrpc: "2.0"
+        , method: "textDocument/publishDiagnostics"
+        , id: Nothing
+        , params: params
+        }
+    refreshDiagnosticReport :: Maybe String -> Ref.Ref (Map.Map String ModuleStatus) -> Effect Unit
+    refreshDiagnosticReport Nothing moduleStatus = do
+      currDocChanges <- Ref.read moduleStatus
+      _ <- traverse (\(Tuple uri p) -> do
+            sendFileDiagnostics uri [] 
+            sendFileDiagnostics uri p.diagnostics
+        ) $ (Map.toUnfoldable currDocChanges :: Array (Tuple String ModuleStatus))
+      pure unit 
+    refreshDiagnosticReport (Just uri) moduleStatus = do
+      refreshModuleDiagnosticReport uri moduleStatus 
+
+    refreshModuleDiagnosticReport uri moduleStatus = do
+      currDocChanges <- Ref.read moduleStatus
+      let diagnostic = 
+            case lookup uri currDocChanges of
+              Just content -> content.diagnostics
+              Nothing -> []
+      sendFileDiagnostics uri []
+      sendFileDiagnostics uri diagnostic 
+
+

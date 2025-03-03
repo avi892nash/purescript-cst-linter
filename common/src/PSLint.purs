@@ -3,7 +3,6 @@ module PSLint where
 import PSLint.Types (PSLintConfig)
 import Prelude
 
-import Data.Array (foldl)
 import Data.Array.NonEmpty as NArray
 import Data.Maybe (Maybe(..))
 import Data.Set as S
@@ -26,7 +25,7 @@ import Rules.NoArrayJSX (lintNoArrayJSX)
 import Rules.NoClassConstraints (lintNoClassConstraints)
 import Utils (PSLint)
 
-lintAllFiles :: PSLintConfig -> Aff (Array { uri :: String, params :: Array { status :: String, type :: String, ranges :: Array (String /\ CST.SourceRange) }})
+lintAllFiles :: PSLintConfig -> Aff (Array { uri :: String, content :: String, params :: Array { status :: String, type :: String, ranges :: Array (String /\ CST.SourceRange) }})
 lintAllFiles config = do
   files <- expandGlobsCwd config.files
   ignoreFiles <- expandGlobsCwd config.ignore
@@ -40,7 +39,7 @@ lintAllFiles config = do
   ) $ S.toUnfoldable filteredFiles
   pure $ 
     map 
-      (\{uri, content} -> { uri, params : map (\p -> { status : p.status, type : p.type, ranges : p.ranges }) $ lintModule config uri content })
+      (\{uri, content} -> { uri, content, params : map (\p -> { status : p.status, type : p.type, ranges : p.ranges }) $ lintModule config uri content })
       filteredFilesContent
 
 

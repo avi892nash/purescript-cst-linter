@@ -3,19 +3,19 @@ module ServerLSP where
 import Prelude
 
 import Capabilities.Diagnostic (handleDiagnosticRequest, makeDiagnosticReport)
-import Capabilities.Initialize (handleIntializeRequest)
+import Capabilities.Initialize (handleIntializeRequest, refreshPSLintConfig)
 import Capabilities.TextDocumentSync (handleChangeTextDoc, handleDidOpen, handleDidSave)
 import Data.Array (foldMap)
 import Data.Either (Either(..))
 import Data.Map (lookup)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..))
 import Data.Nullable as N
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Debug (spy)
 import Effect (Effect)
-import Effect.Aff (launchAff)
+import Effect.Aff (Aff, launchAff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
 import Effect.Ref (modify)
@@ -43,24 +43,7 @@ ipcInputHandler lintState = do
               "initialized" -> do
                 config <- Ref.read lintState.psLintConfig
                 Console.log $ "Initialized by : " <> writeJSON config
-                _ <- launchAff $ do
-                        config <- liftEffect $ Ref.read lintState.psLintConfig
-                        ranges <- lintAllFiles config
-                        _ <- liftEffect $ traverse
-                          (\{ uri, params, content } -> do
-                            let diagnostics = foldMap (\p -> makeDiagnosticReport p.status p.ranges) params
-                            modify 
-                              (Map.alter 
-                                (case _ of
-                                  Just o -> Just $ o { diagnostics = diagnostics }
-                                  Nothing -> Just { diagnostics, currentChanges : content }
-                                ) uri
-                              ) lintState.moduleStatus
-                          )
-                          ranges
-                        liftEffect $ lintState.refreshDiagnosticReport Nothing lintState.moduleStatus
-                        
-                        pure unit
+                _ <- launchAff $ readAndLintAllFiles lintState
                 pure unit 
                         
 
@@ -70,7 +53,8 @@ ipcInputHandler lintState = do
                   (\({params : p} :: { params :: DidCloseTextDocumentParams}) -> do
                     -- s <- Ref.read lintState.moduleStatus
                     -- let _ = spy "Avinash" $ lookup p.textDocument.uri s
-                    lintState.refreshDiagnosticReport (Just p.textDocument.uri) lintState.moduleStatus
+                    -- lintState.clearDiagnosticReport (Just p.textDocument.uri) lintState.moduleStatus
+                    lintState.sendDiagnosticReport (Just p.textDocument.uri) lintState.moduleStatus
                   ) fgn
                 pure unit
               "textDocument/diagnostic" -> do
@@ -83,7 +67,8 @@ ipcInputHandler lintState = do
               "textDocument/didChange" -> do
                 handleResponse (handleChangeTextDoc lintState) fgn
               "workspace/didChangeWatchedFiles" -> do
-
+                liftEffect $ lintState.clearDiagnosticReport Nothing lintState.moduleStatus
+                refreshPSLintConfig lintState.psLintConfig (readAndLintAllFiles lintState) 
                 pure unit
               "shutdown" -> do
                 Console.log "Shutting down server..."
@@ -120,6 +105,26 @@ shutdownResponse (Request { id }) = ipcResponseHandler "shutdown" $ Response
                     }
 
 
+readAndLintAllFiles :: LintState -> Aff Unit
+readAndLintAllFiles lintState = do 
+  config <- liftEffect $ Ref.read lintState.psLintConfig
+  ranges <- lintAllFiles config
+  _ <- liftEffect $ traverse
+    (\{ uri, params, content } -> do
+      let diagnostics = foldMap (\p -> makeDiagnosticReport p.status p.ranges) params
+      modify 
+        (Map.alter 
+          (case _ of
+            Just o -> Just $ o { diagnostics = diagnostics }
+            Nothing -> Just { diagnostics, currentChanges : content }
+          ) uri
+        ) lintState.moduleStatus
+    )
+    ranges
+  liftEffect $ lintState.clearDiagnosticReport Nothing lintState.moduleStatus
+  liftEffect $ lintState.sendDiagnosticReport Nothing lintState.moduleStatus
+                        
+
 main ∷ Unit
 main = unsafePerformEffect $ do
   psLintConfig <- Ref.new { 
@@ -134,8 +139,8 @@ main = unsafePerformEffect $ do
   let lintState = {
     psLintConfig,
     moduleStatus,
-    refreshDiagnosticReport,
-    clearDiagnosticReport : \uri -> sendFileDiagnostics uri []
+    sendDiagnosticReport,
+    clearDiagnosticReport
   }
   ipcInputHandler lintState
   where
@@ -148,16 +153,25 @@ main = unsafePerformEffect $ do
         , id: Nothing
         , params: params
         }
-    refreshDiagnosticReport :: Maybe String -> Ref.Ref (Map.Map String ModuleStatus) -> Effect Unit
-    refreshDiagnosticReport Nothing moduleStatus = do
+    sendDiagnosticReport :: Maybe String -> Ref.Ref (Map.Map String ModuleStatus) -> Effect Unit
+    sendDiagnosticReport Nothing moduleStatus = do
       currDocChanges <- Ref.read moduleStatus
       _ <- traverse (\(Tuple uri p) -> do
-            sendFileDiagnostics uri [] 
             sendFileDiagnostics uri p.diagnostics
         ) $ (Map.toUnfoldable currDocChanges :: Array (Tuple String ModuleStatus))
       pure unit 
-    refreshDiagnosticReport (Just uri) moduleStatus = do
+    sendDiagnosticReport (Just uri) moduleStatus = do
       refreshModuleDiagnosticReport uri moduleStatus 
+
+    clearDiagnosticReport :: Maybe String -> Ref.Ref (Map.Map String ModuleStatus) -> Effect Unit
+    clearDiagnosticReport Nothing moduleStatus = do
+      currDocChanges <- Ref.read moduleStatus
+      _ <- traverse (\(Tuple uri _) -> do
+            sendFileDiagnostics uri []
+        ) $ (Map.toUnfoldable currDocChanges :: Array (Tuple String ModuleStatus))
+      pure unit  
+    clearDiagnosticReport (Just uri) _ = do
+      sendFileDiagnostics uri []
 
     refreshModuleDiagnosticReport uri moduleStatus = do
       currDocChanges <- Ref.read moduleStatus
@@ -165,7 +179,6 @@ main = unsafePerformEffect $ do
             case lookup uri currDocChanges of
               Just content -> content.diagnostics
               Nothing -> []
-      sendFileDiagnostics uri []
       sendFileDiagnostics uri diagnostic 
 
 

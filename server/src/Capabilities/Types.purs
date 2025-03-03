@@ -149,8 +149,8 @@ type ModuleStatus = { currentChanges :: String, diagnostics :: Array Diagnostic 
 type LintState = {
   psLintConfig :: Ref PSLintConfig,
   moduleStatus :: Ref (Map.Map String ModuleStatus),
-  refreshDiagnosticReport :: Maybe String -> Ref.Ref (Map.Map String ModuleStatus) -> Effect Unit,
-  clearDiagnosticReport :: String -> Effect Unit 
+  sendDiagnosticReport :: Maybe String -> Ref.Ref (Map.Map String ModuleStatus) -> Effect Unit,
+  clearDiagnosticReport :: Maybe String -> Ref.Ref (Map.Map String ModuleStatus) -> Effect Unit 
 }
 
 

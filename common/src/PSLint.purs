@@ -35,7 +35,7 @@ lintAllFiles config = do
   -- let _ = spy "PSLint Filtered files : " $ S.toUnfoldable filteredFiles :: Array String
   filteredFilesContent <- traverse (\file_path -> do
     content <- (liftEffect <<< Buffer.toString UTF8) =<< readFile file_path
-    pure $ { uri : file_path, content }
+    pure $ { uri : "file://" <> file_path, content }
   ) $ S.toUnfoldable filteredFiles
   pure $ 
     map 

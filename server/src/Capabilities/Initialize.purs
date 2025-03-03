@@ -6,7 +6,8 @@ import Control.Monad.Error.Class (try)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
-import Effect.Ref (Ref, modify, write)
+import Effect.Aff (Aff, launchAff_)
+import Effect.Ref (Ref, write)
 import Node.Buffer (toString)
 import Node.Encoding as Encoding
 import Node.FS.Sync (readFile)
@@ -63,3 +64,17 @@ handleIntializeRequest refpsLintConfig callbackResp ipcRequestSend (Request {id,
               , error : Nothing }
 
 
+
+refreshPSLintConfig :: Ref PSLintConfig -> Aff Unit -> Effect Unit
+refreshPSLintConfig psLintConfig sendDiagnosticReport = do
+  eiContent <- try $ toString Encoding.UTF8 =<< readFile "./.pslintrc"
+  case eiContent of
+    Right content ->
+      case readJSON content :: _ PSLintConfig of
+        Right c -> do
+          write c psLintConfig 
+          _ <- launchAff_ sendDiagnosticReport
+          pure unit
+        Left _ -> pure unit
+    Left _ -> pure unit
+  

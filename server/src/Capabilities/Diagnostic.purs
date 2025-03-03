@@ -15,7 +15,7 @@ import Yoga.JSON (class WriteForeign)
 
 
 handleDiagnosticRequest :: LintState -> (forall a. WriteForeign a => Response a -> Effect Unit) -> Request DocumentDiagnosticParams -> Effect Unit
-handleDiagnosticRequest { psLintConfig , moduleStatus : refCurrentDocChanges, clearDiagnosticReport } callbackResponse (Request {id, params : (DocumentDiagnosticParams p)}) = do
+handleDiagnosticRequest { psLintConfig , moduleStatus : refCurrentDocChanges, clearDiagnosticReport, sendDiagnosticReport} callbackResponse (Request {id, params : (DocumentDiagnosticParams p)}) = do
   currentTextChange <- Ref.read refCurrentDocChanges
   config <- Ref.read psLintConfig
   let mbContent = Map.lookup p.textDocument.uri currentTextChange
@@ -24,12 +24,13 @@ handleDiagnosticRequest { psLintConfig , moduleStatus : refCurrentDocChanges, cl
           Just content -> foldMap (\p -> makeDiagnosticReport p.status p.ranges) $ lintModule config p.textDocument.uri content.currentChanges
           Nothing -> []
   
-  clearDiagnosticReport p.textDocument.uri
+  clearDiagnosticReport (Just p.textDocument.uri) refCurrentDocChanges 
+  sendDiagnosticReport (Just p.textDocument.uri) refCurrentDocChanges 
   callbackResponse $ Response 
       { jsonrpc : "2.0"
       , id : id
       , error : Nothing
-      , result : RelatedFullDocumentDiagnosticReport { relatedDocuments : Nothing, resultId : Nothing, items : response } 
+      , result : RelatedFullDocumentDiagnosticReport { relatedDocuments : Nothing, resultId : Nothing, items : [] } 
       }
 
 

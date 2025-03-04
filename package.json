@@ -6,6 +6,9 @@
   "engines": {
     "vscode": "^1.75.0"
   },
+  "bin": {
+    "pslint": "dist/cli.js"
+  },
   "files": ["dist"],
   "activationEvents": [
     "workspaceContains:.pslintrc",
@@ -17,8 +20,8 @@
     "build": "spago build",
     "bundle:client": "esbuild --bundle --outfile=dist/client.js --platform=node --format=cjs --external:vscode ./output/ClientLSP/index.js",
     "bundle:server": "esbuild --bundle --outfile=dist/server.js --platform=node --format=cjs --external:vscode ./output/ServerLSP/index.js",
-    "bundle": "spago build && npm run bundle:client && npm run bundle:server"
-    
+    "bundle:cli": "esbuild --bundle --outfile=dist/cli.js --platform=node --format=cjs ./output/CLI/index.js  --banner:js=\"#!/usr/bin/env node\"",
+    "bundle": "spago build && npm run bundle:client && npm run bundle:server && npm run bundle:cli"
   },
   "contributes": {
     "commands": [

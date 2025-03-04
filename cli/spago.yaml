@@ -1,0 +1,10 @@
+package:
+  name: cli
+  dependencies:
+    - aff
+    - console
+    - effect
+    - common
+  test:
+    main: Test.Main
+    dependencies: []

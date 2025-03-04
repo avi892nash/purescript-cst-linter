@@ -3,47 +3,55 @@
   "version": "0.0.0",
   "description": "A simple library to run linting ps code easily.",
   "publisher": "pslint",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/avi892nash/purescript-cst-linter"
+  },
   "engines": {
     "vscode": "^1.75.0"
   },
   "bin": {
     "pslint": "dist/cli.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "activationEvents": [
     "workspaceContains:.pslintrc",
     "onLanguage:purescript"
   ],
   "main": "dist/client.js",
   "scripts": {
-    "vscode:prepublish": "npx vsce package",
+    "package": "npx @vscode/vsce package",
+    "vscode:prepublish": "npm run bundle",
     "build": "spago build",
     "bundle:client": "esbuild --bundle --outfile=dist/client.js --platform=node --format=cjs --external:vscode ./output/ClientLSP/index.js",
     "bundle:server": "esbuild --bundle --outfile=dist/server.js --platform=node --format=cjs --external:vscode ./output/ServerLSP/index.js",
     "bundle:cli": "esbuild --bundle --outfile=dist/cli.js --platform=node --format=cjs ./output/CLI/index.js  --banner:js=\"#!/usr/bin/env node\"",
-    "bundle": "spago build && npm run bundle:client && npm run bundle:server && npm run bundle:cli"
+    "bundle": "spago build && npm run bundle:client && npm run bundle:server && npm run bundle:cli",
+    "publish": "npx @vscode/vsce publish"
   },
   "contributes": {
     "commands": [
       {
-        "command": "pslint.lintall",
+        "command": "pslint",
         "title": "PSLint: Lint All Files"
       }
     ]
   },
   "keywords": [],
   "author": "Avinash",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
-    "@types/vscode": "^1.91.0",
-    "esbuild": "^0.23.0",
-    "eslint": "^9.6.0",
+    "@types/vscode": "^1.75.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.21.0",
     "purescript": "^0.15.15",
     "spago": "^0.93.35",
-    "vsce": "^2.15.0"
+    "@vscode/vsce": "^3.2.2",
+    "path": "^0.12.7"
   },
   "dependencies": {
-    "path": "^0.12.7",
     "vscode-languageclient": "^9.0.1"
   }
 }

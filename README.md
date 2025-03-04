@@ -70,7 +70,7 @@ Enforces safe DOM manipulation patterns.
       ```
       {
         "name": "functionName",
-        "syntax": ["allowed", "syntax", "patterns"],
+        "syntax": ["any", "string", "int", "array"],
         "strict": true
       }
       ```
